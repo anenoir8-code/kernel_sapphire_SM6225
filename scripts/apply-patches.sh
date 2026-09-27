@@ -66,6 +66,20 @@ if [ -d "$PATCHES_DIR/common" ]; then
         continue
       fi
     fi
+    if [ "$SOURCE_TYPE" = "clo" ]; then
+      CLO_FB="$PATCHES_DIR/clo-only/${NAME}.patch"
+      if ! patch -p1 --dry-run --forward --quiet < "$PATCH" 2>/dev/null; then
+        if patch -p1 --dry-run --reverse --quiet < "$PATCH" 2>/dev/null; then
+          echo "[SKIP] $NAME — already applied"
+        elif [ -f "$CLO_FB" ]; then
+          echo "[CLO-FB] $NAME — common failed, trying clo-only fallback"
+          apply_patch "$CLO_FB" "$NAME"
+        else
+          echo "[FAIL] $NAME — context mismatch, needs manual review"
+        fi
+        continue
+      fi
+    fi
     apply_patch "$PATCH" "$NAME"
   done
 fi
