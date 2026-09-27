@@ -50,10 +50,21 @@ if [ -d "$PATCHES_DIR/common" ]; then
   for PATCH in "$PATCHES_DIR/common"/*.patch; do
     [ -f "$PATCH" ] || continue
     NAME="$(basename "$PATCH" .patch)"
-    # zstd-upgrade-v157 requires v1.5.7 subdir layout — not compatible with gki-compat flat layout
-    if [ "$SOURCE_TYPE" = "gki-compat" ] && [ "$NAME" = "zstd-upgrade-v157" ]; then
-      echo "[SKIP] $NAME — not applicable to gki-compat (flat zstd layout)"
-      continue
+    # For gki-compat: try common patch first; on failure look for a
+    # compat-specific fallback in gki-compat-only/ before giving up.
+    if [ "$SOURCE_TYPE" = "gki-compat" ]; then
+      COMPAT_FB="$PATCHES_DIR/gki-compat-only/${NAME}.patch"
+      if ! patch -p1 --dry-run --forward --quiet < "$PATCH" 2>/dev/null; then
+        if patch -p1 --dry-run --reverse --quiet < "$PATCH" 2>/dev/null; then
+          echo "[SKIP] $NAME — already applied"
+        elif [ -f "$COMPAT_FB" ]; then
+          echo "[COMPAT-FB] $NAME — common failed, trying gki-compat-only fallback"
+          apply_patch "$COMPAT_FB" "$NAME"
+        else
+          echo "[SKIP] $NAME — not applicable to gki-compat (no fallback)"
+        fi
+        continue
+      fi
     fi
     apply_patch "$PATCH" "$NAME"
   done
